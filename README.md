@@ -4,6 +4,8 @@ A cross-platform location source abstraction that polls available GPS APIs or ha
 ## WIP!
 This README is closer to a braindump. There are no docs yet. This crate is a proof-of-concept stage.
 
+The codebase is going to start out as a collection of minimal POCs across platforms before they are woven together into a usable API
+
 ## Goals
 - Cover the platforms listed below
   - MacOS
