@@ -1,0 +1,9 @@
+[package]
+name = "getlla"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+objc2 = "0.6.1"
+objc2-core-location = "0.3.1"
+objc2-foundation = "0.3.1"
