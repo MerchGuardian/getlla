@@ -69,20 +69,12 @@ fn main() {
         let lm = CLLocationManager::new();
         println!("Location services enabled: {:?}", lm.locationServicesEnabled());
         printStatus(&lm);
-        // CLLocationUpdater::liveUpdaterWithQueue_handler(queue, handler)
-        //
 
         let mtm = MainThreadMarker::new().unwrap();
         let delegate = Delegate::new(mtm);
         lm.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
 
-        // lm.requestWhenInUseAuthorization();
-        // lm.requestLocation();
-
-        // delegate.start();
         lm.startUpdatingLocation();
-
-        // println!("{:?}", lm.location());
         loop {
             NSRunLoop::mainRunLoop().run();
         }
