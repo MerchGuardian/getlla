@@ -47,6 +47,7 @@
 
           buildInputs =
             [
+
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
               pkgs.libiconv
@@ -59,13 +60,26 @@
             cargoArtifacts = craneLib.buildDepsOnly commonArgs;
           }
         );
+
+        my-crate-windows = craneLib.buildPackage (commonArgs // {
+          doCheck = false;
+          CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
+          TARGET_CC = "${pkgs.pkgsCross.mingwW64.stdenv.cc}/bin/${pkgs.pkgsCross.mingwW64.stdenv.cc.targetPrefix}cc";
+          depsBuildBuild = with pkgs; [
+            pkgsCross.mingwW64.stdenv.cc
+            pkgsCross.mingwW64.windows.pthreads
+          ];
+        });
       in
       {
         checks = {
           inherit my-crate;
         };
 
-        packages.default = my-crate;
+        packages = {
+          default = my-crate;
+          inherit my-crate my-crate-windows;
+        };
 
         apps.default = flake-utils.lib.mkApp {
           drv = my-crate;

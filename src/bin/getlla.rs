@@ -1,5 +1,5 @@
-pub use getlla::macos;
+// pub use getlla::macos;
 
 fn main() {
-    macos::go();
+    getlla::windows::go();
 }

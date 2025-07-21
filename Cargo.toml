@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { version = "1.46.1", features = ["full"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61.3", features = ["Devices_Geolocation"] }
+windows-sys = "0.60.2"
+windows-future = "0.2.1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk = "0.9.0"
