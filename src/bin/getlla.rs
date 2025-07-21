@@ -1,5 +1,5 @@
 // pub use getlla::macos;
 
 fn main() {
-    getlla::windows::go().unwrap();
+    getlla::windows::go();
 }
