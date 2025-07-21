@@ -64,7 +64,7 @@ fn printStatus(lm: &CLLocationManager) {
     }
 }
 
-fn main() {
+pub fn go() {
     unsafe {
         let lm = CLLocationManager::new();
         println!("Location services enabled: {:?}", lm.locationServicesEnabled());

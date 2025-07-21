@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
             GetllaTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = "number: "+Getlla.getlla(5),
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
