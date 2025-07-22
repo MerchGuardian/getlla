@@ -14,6 +14,8 @@ windows-result = "0.3.4"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk = "0.9.0"
+jni = "0.21"
+log = "0.4.27"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6.1"
