@@ -37,7 +37,6 @@ pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
     let perm_res = env.call_static_method("androidx/core/app/ActivityCompat", "requestPermissions", "(Landroid/app/Activity;[Ljava.lang.String;I)",
         &[(&context).into(), (&perms_to_get).into(), 0.into()]);
 
-    log::info!()
 
     // env.call_method(
     //     usb_man,
