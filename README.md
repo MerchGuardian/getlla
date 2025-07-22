@@ -36,7 +36,11 @@ A script to do this is currently in build.sh
 TODO. There will be likely be some android permissions and manifest.xml entries 
 
 ### Windows 
-TODO (no addl. permission should be necessary, based on existing powershell samplecode)
+No additional permissions are necessary, unless you are making a windows store app.
+In which case you must define `ID_CAP_LOCATION` in the application manifest.
+Settings > Location
+
+If the user disables Location permissions, calling `get_permissions` will open the settings app on the location privacy page to encourage them to update their selection.
 
 ### Linux 
 Unsure of the canonical way for accessing built-in GPS recievers for laptops running linux - this may be highly vendor specific, or it may be as simple as opening a serial device.

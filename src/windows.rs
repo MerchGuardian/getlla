@@ -1,39 +1,46 @@
 use std::time::Duration;
+use windows::Devices::Geolocation::Geolocator;
 
-use windows::{Devices::Geolocation::Geolocator, core::Result};
-use windows_future::IAsyncOperation;
+pub struct Windows {
+    locator: Geolocator,
+}
 
-pub fn go() {
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-    runtime
-        .block_on(async move || -> Result<()> {
-            let locator = Geolocator::new()?;
+impl Windows {
+    pub fn new() -> crate::Result<Self> {
+        Ok(Self {
+            locator: Geolocator::new()?,
+        })
+    }
 
-            println!("Requesting access...");
-            if let Err(e) = Geolocator::RequestAccessAsync() {
-                println!("failed to get permissions: {e:?}");
-            }
+    pub fn get_permissions(&mut self) -> crate::Result<()> {
+        let status = Geolocator::RequestAccessAsync().and_then(|r| r.get());
 
-            let pos = locator.GetGeopositionAsync()?.await?;
-
-            let coord = pos.Coordinate()?;
-            let point = coord.Point()?;
-            let pos = point.Position()?;
-
-            println!("Latitude:  {}", pos.Latitude);
-            println!("Longitude: {}", pos.Longitude);
-            println!("Altitude:  {} meters", pos.Altitude);
-
-            tokio::time::sleep(Duration::from_secs(5));
-
+        if status != Ok(windows::Devices::Geolocation::GeolocationAccessStatus::Allowed) {
             println!("Launching settings intent!");
-            let uri = windows::Foundation::Uri::CreateUri(&"ms-settings:privacy-location".into())?;
+            let uri = windows::Foundation::Uri::CreateUri(&"ms-settings:privacy-location".into())
+                .unwrap();
 
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            windows::System::Launcher::LaunchUriAsync(&uri)?;
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            windows::System::Launcher::LaunchUriAsync(&uri).unwrap();
+            // Wait a bit and then return failure since we dont know when (or even if) the user
+            // will re-enable location to us
+            std::thread::sleep(Duration::from_secs(2));
+            return Err(crate::Error::PermissionsDenied);
+        }
 
-            Ok(())
-        }())
-        .unwrap()
+        Ok(())
+    }
+
+    pub fn get(&mut self) -> crate::Result<crate::Lla> {
+        let pos = self.locator.GetGeopositionAsync()?.get()?;
+
+        let coord = pos.Coordinate()?;
+        let point = coord.Point()?;
+        let pos = point.Position()?;
+
+        Ok(crate::Lla {
+            latitude_degs: pos.Latitude,
+            longitude_degs: pos.Longitude,
+            altitude_m_hae: pos.Altitude,
+        })
+    }
 }
