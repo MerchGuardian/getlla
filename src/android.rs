@@ -1,27 +1,61 @@
-use jni::{objects::{JObject, JValue, JValueGen}, JNIEnv};
+use jni::{objects::{JObject, JValue, JValueGen, JValueOwned}, JNIEnv};
 
 /// Requests permissions on android
 pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
     // const REQUEST_PERM_HANDLE: &'static str = "dev.foxhunter.getlla.LOCATION";
     // let request_perm_handle = env.new_string(REQUEST_PERM_HANDLE).expect("Couldn't create JNI String");
 
-    let JValueGen::Object(at) = env
+    let Ok(JValueGen::Object(at)) = env
         .call_static_method(
             "android/app/ActivityThread",
             "currentActivityThread",
             "()Landroid/app/ActivityThread;",
             &[],
-        )
-        .expect("Couldn't get activity thread method") else {
+        ) else {
         log::info!("got non-object when expecting object");
         return;
     };
         // .get_object(env).expect("couldn't get activity thread");
 
-    let JValueGen::Object(context) = env.call_method(at, "getApplication", "()Landroid/app/Application;", &[]).expect("coudn't get application method") else {
-        log::info!("got non-object when expecting object");
+    
+    let Ok(JValueOwned::Object(activities)) = env.get_field(&at, "mActivities", "Landroid/util/ArrayMap;") else {
+        log::warn!("couldn't reach into mActivities");
         return;
     };
+
+    log::info!("Got activities {activities:?}");
+
+    let Ok(JValueOwned::Int(size)) = env.call_method(&activities, "size", "()I", &[]) else {
+        log::warn!("couldn't get mActivities size");
+        return;
+    };
+
+    log::info!("activities is {size:?} long");
+
+    let Ok(JValueOwned::Object(activity_record)) = env.call_method(&activities, "valueAt", "(I)Ljava/lang/Object;", &[(size - 1).into()]) else {
+        log::warn!("couldn't get mActivities valueAt");
+        return;
+    };
+
+    log::info!("got activity record {activity_record:?} ");
+
+    let Ok(JValueOwned::Object(context)) = env.get_field(&activity_record, "activity", "Landroid/app/Activity;") else {
+        log::warn!("couldn't reach into activity_record");
+        return;
+    };
+    log::info!("got activity {context:?} ");
+
+    // let JValueGen::Object(context) = env.call_method(at, "getApplication", "()Landroid/app/Application;", &[]).expect("coudn't get application method") else {
+    //     log::info!("got non-object when expecting object");
+    //     return;
+    // };
+    // 
+    // let Ok(JValueGen::Object(context)) = env.call_method(&at, "getLastCreatedActivity", "()Landroid/app/Activity;", &[]) else {
+    //     log::info!("got non-object when expecting object");
+    //     return;
+    // };
+
+    
 
     log::info!("got context {context:?}");
 
