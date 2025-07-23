@@ -1,5 +1,16 @@
 use jni::{objects::{JObject, JValue, JValueGen, JValueOwned}, JNIEnv};
 
+fn check_permission<'local>(env: &mut JNIEnv<'local>) -> Result<bool, ()> {
+    let activity = get_current_activity(env).expect("must be called from an activitiy");
+    let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
+
+    let Ok(JValueGen::Int(perm)) = env.call_static_method("androidx/core/content/ContextCompat", "checkSelfPermission", "(Landroid/content/Context;Ljava/lang/String;)I", &[(&activity).into(), (&fine_location).into()]) else {
+        return Err(());
+    };
+
+    Ok(perm == 0)
+}
+
 // cobbled together with undocumented APIs - when AOSP master we can replace the mActivities with similar logic already implemented there
 // contract: we are inside of an activity
 // TODO: check contract and err 
@@ -62,6 +73,12 @@ pub fn request_permission<'local>(env: &mut JNIEnv<'local>) {
          &[(&activity).into(), (&perms_to_get).into(), JValue::Int(420)]);
 
     log::info!("asked for permissions: {perm_res:?}");
+
+    while let Ok(false) = check_permission(env) {
+        // busy loop waiting for perm.
+        //  we could try to play some callback games, but we cant create classes so this gets very weird.
+        //  we may be able to register functions, but haven't tried this yet.
+    }
 }
 
 pub fn get_lla<'local>(env: &mut JNIEnv<'local>) -> Result<(f64, f64, f64), ()> {
