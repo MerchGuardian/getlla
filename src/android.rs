@@ -1,4 +1,4 @@
-use jni::{objects::{JObject, JValueGen}, JNIEnv};
+use jni::{objects::{JObject, JValue, JValueGen}, JNIEnv};
 
 /// Requests permissions on android
 pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
@@ -30,13 +30,14 @@ pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
     let perms_to_get = env.new_object_array(1, "java/lang/String", fine_location).expect("alloc array");
     // env.set_object_array_element(&perms_to_get, 1, coarse_location);
 
+    
 
     // //(Landroid/app/Activity;[Ljava/lang/String;I)V
     // let perm_res = env.get_method_id("android/app/Activity", "closeContextMenu", "()");
     let perm_res = env.call_static_method("androidx/core/app/ActivityCompat",
          "requestPermissions",
          "(Landroid/app/Activity;[Ljava/lang/String;I)V",
-         &[(&context).into(), (&perms_to_get).into(), 420.into()]);
+         &[(&context).into(), (&perms_to_get).into(), JValue::Int(420)]);
 
         // env.register_native_methods(``, methods)
 
