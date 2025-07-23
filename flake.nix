@@ -77,8 +77,6 @@
             android-tools
             cargo-ndk
             toolchain
-            androidndkPkgs.binutils
-            androidndkPkgs.binaries
           ];
         };
       }

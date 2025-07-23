@@ -25,17 +25,26 @@ pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
 
     log::info!("got context {context:?}");
 
+    let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
+    // let coarse_location = env.new_string("android.permission.ACCESS_COARSE_LOCATION").expect("string");
+    let perms_to_get = env.new_object_array(1, "java/lang/String", fine_location).expect("alloc array");
+    // env.set_object_array_element(&perms_to_get, 1, coarse_location);
+
+
+    // //(Landroid/app/Activity;[Ljava/lang/String;I)V
+    // let perm_res = env.get_method_id("android/app/Activity", "closeContextMenu", "()");
+    let perm_res = env.call_static_method("androidx/core/app/ActivityCompat",
+         "requestPermissions",
+         "(Landroid/app/Activity;[Ljava/lang/String;I)V",
+         &[(&context).into(), (&perms_to_get).into(), 420.into()]);
+
+        // env.register_native_methods(``, methods)
+
+    log::info!("asked for permissions: {perm_res:?}");
+
     let location_service_handle = env.new_string("location").expect("create JNI String");
     let lm = env.call_method(&context, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&location_service_handle).into()]).expect("get location manager");
 
-    let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
-    let coarse_location = env.new_string("android.permission.ACCESS_COARSE_LOCATION").expect("string");
-    let perms_to_get = env.new_object_array(2, "java/lang/String", fine_location).expect("alloc array");
-    env.set_object_array_element(&perms_to_get, 1, coarse_location);
-
-
-    let perm_res = env.call_static_method("androidx/core/app/ActivityCompat", "requestPermissions", "(Landroid/app/Activity;[Ljava.lang.String;I)",
-        &[(&context).into(), (&perms_to_get).into(), 0.into()]);
 
 
     // env.call_method(
