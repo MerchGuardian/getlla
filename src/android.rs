@@ -1,19 +1,9 @@
 use jni::{objects::{JObject, JValue, JValueGen, JValueOwned}, JNIEnv};
 
-/// Requests permissions on android
-/// CONTRACT: MUST be called from an Activity.
-/// If there is no Activity on this thread, we will not be able to produce a permission popup
-pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
-    // const REQUEST_PERM_HANDLE: &'static str = "dev.foxhunter.getlla.LOCATION";
-    // let request_perm_handle = env.new_string(REQUEST_PERM_HANDLE).expect("Couldn't create JNI String");
-    //
-
-
-    // A major drawback of this approach is that the method used to get the activity uses 100% "unsupported" APIs
-    // see requestPermissions in Activity.java (ActivityCompat is just a wrapper around this)
-    // It's possible that we can manually construct and send the intent (packageManager.buildRequestPermissionsIntent)
-    // This approach would also require unsupported APIs (like startActivityForResult, which still needs an Activity)
-
+// cobbled together with undocumented APIs - when AOSP master we can replace the mActivities with similar logic already implemented there
+// contract: we are inside of an activity
+// TODO: check contract and err 
+fn get_current_activity<'local>(env: &mut JNIEnv<'local>) -> Result<JObject<'local>, ()> {
     let Ok(JValueGen::Object(at)) = env
         .call_static_method(
             "android/app/ActivityThread",
@@ -22,100 +12,101 @@ pub fn request_permission<'local>(mut env: JNIEnv<'local>) {
             &[],
         ) else {
         log::info!("Unable to get activity thread");
-        return;
+        return Err(());
     };
 
-    
     let Ok(JValueOwned::Object(activities)) = env.get_field(&at, "mActivities", "Landroid/util/ArrayMap;") else {
         log::warn!("couldn't reach into mActivities");
-        return;
+        return Err(());
     };
     log::info!("Got activities {activities:?}");
 
     let Ok(JValueOwned::Int(size)) = env.call_method(&activities, "size", "()I", &[]) else {
         log::warn!("couldn't get mActivities size");
-        return;
+        return Err(());
     };
     log::info!("activities is {size:?} long");
 
     let Ok(JValueOwned::Object(activity_record)) = env.call_method(&activities, "valueAt", "(I)Ljava/lang/Object;", &[(size - 1).into()]) else {
         log::warn!("couldn't get mActivities valueAt");
-        return;
+        return Err(());
     };
     log::info!("got activity record {activity_record:?} ");
 
-    let Ok(JValueOwned::Object(context)) = env.get_field(&activity_record, "activity", "Landroid/app/Activity;") else {
+    let Ok(JValueOwned::Object(activity)) = env.get_field(&activity_record, "activity", "Landroid/app/Activity;") else {
         log::warn!("couldn't reach into activity_record");
-        return;
+        return Err(());
     };
-    log::info!("got activity {context:?} ");
+    log::info!("got activity {activity:?} ");
+
+    Ok(activity)
+}
+
+/// Requests permissions on android
+/// CONTRACT: MUST be called from an Activity.
+/// If there is no Activity on this thread, we will not be able to produce a permission popup
+pub fn request_permission<'local>(env: &mut JNIEnv<'local>) {
+    // A major drawback of this approach is that the method used to get the activity uses 100% "unsupported" APIs
+    // see requestPermissions in Activity.java (ActivityCompat is just a wrapper around this)
+    // It's possible that we can manually construct and send the intent (packageManager.buildRequestPermissionsIntent)
+    // This approach would also require unsupported APIs (like startActivityForResult, which still needs an Activity)
+
+    let activity = get_current_activity(env).expect("must have a current activity");
 
     let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
     let perms_to_get = env.new_object_array(1, "java/lang/String", fine_location).expect("alloc array");
 
-    
-
-    // //(Landroid/app/Activity;[Ljava/lang/String;I)V
-    // let perm_res = env.get_method_id("android/app/Activity", "closeContextMenu", "()");
     let perm_res = env.call_static_method("androidx/core/app/ActivityCompat",
          "requestPermissions",
          "(Landroid/app/Activity;[Ljava/lang/String;I)V",
-         &[(&context).into(), (&perms_to_get).into(), JValue::Int(420)]);
-
-        // env.register_native_methods(``, methods)
+         &[(&activity).into(), (&perms_to_get).into(), JValue::Int(420)]);
 
     log::info!("asked for permissions: {perm_res:?}");
+}
 
-    //TODO: separate following code into another function
+pub fn get_lla<'local>(env: &mut JNIEnv<'local>) -> Result<(f64, f64, f64), ()> {
+    let context = get_current_activity(env).expect("must have a current activity");
+
     let location_service_handle = env.new_string("location").expect("create JNI String");
     let Ok(JValueOwned::Object(lm)) = env.call_method(&context, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&location_service_handle).into()]) else {
         log::warn!("Unable to get location manager");
-        return;
+        return Err(());
     };
 
     let Ok(JValueOwned::Object(providers)) = env.call_method(&lm, "getProviders", "(Z)Ljava/util/List;", &[true.into()]) else {
         log::warn!("Unable to get location providers");
-        return;
+        return Err(());
     };
     log::info!("got providers {providers:?} ");
 
     let Ok(JValueOwned::Object(provider)) = env.call_method(&providers, "getFirst", "()Ljava/lang/Object;", &[]) else {
         log::warn!("couldn't get first provider");
-        return;
+        return Err(());
     };
     log::info!("got provider {provider:?} ");
     
     let Ok(JValueOwned::Object(location)) = env.call_method(&lm, "getLastKnownLocation", "(Ljava/lang/String;)Landroid/location/Location;", &[(&provider).into()]) else {
         log::warn!("Unable to get location providers");
-        return;
+        return Err(());
     };
     log::info!("got location {location:?} ");
 
     let Ok(JValueOwned::Double(latitude)) = env.call_method(&location, "getLatitude", "()D", &[]) else {
         log::warn!("Unable to get lat");
-        return;
+        return Err(());
     };
     let Ok(JValueOwned::Double(longitude)) = env.call_method(&location, "getLongitude", "()D", &[]) else {
         log::warn!("Unable to get lat");
-        return;
+        return Err(());
     };
     //verified that its HAE in the docs
     let Ok(JValueOwned::Double(alt_hae)) = env.call_method(&location, "getAltitude", "()D", &[]) else {
         log::warn!("Unable to get alt");
-        return;
+        return Err(());
     };
     log::info!("got LLA {latitude}, {longitude}, {alt_hae}");
 
-    // env.call_method(
-    //     usb_man,
-    //     "requestPermission",
-    //     "(Landroid/hardware/usb/UsbDevice;Landroid/app/PendingIntent;)V",
-    //     &[(&self.devinst.as_obj()).into(), (&pending).into()],
-    // )
-    // .clear_ex()?;
-
-    // env.
-    // env.call_static_method(class, name, sig, args)
+    return Ok((latitude, longitude, alt_hae));
 }
 
 /*
