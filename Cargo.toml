@@ -4,8 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+thiserror = "2.0.12"
 
-# [target.'cfg(target_os = "android")'.dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61.3", features = ["Devices_Geolocation", "System"] }
+windows-sys = "0.60.2"
+windows-future = "0.2.1"
+windows-result = "0.3.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
 ndk = "0.9.0"
 jni = "0.21"
 log = "0.4.27"
