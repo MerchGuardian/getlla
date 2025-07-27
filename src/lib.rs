@@ -7,6 +7,8 @@ mod macos;
 
 #[cfg(target_os = "android")]
 mod android;
+#[cfg(target_os = "android")]
+pub use android::Android;
 
 #[cfg(target_os = "windows")]
 mod windows;
@@ -15,10 +17,15 @@ mod windows;
 pub enum Error {
     #[error("Unsupported platform")]
     Unsupported,
+
     /// Permissions to access location / device are not allowed, and cannot be accessed until the
     /// user manually intervenes.
     #[error("Permissions denied")]
     PermissionsDenied,
+
+    #[error("Unable to call into system APIs")]
+    FFIError,
+
     #[cfg(target_os = "windows")]
     #[error("{0}")]
     Windows(#[from] windows_result::Error),
@@ -40,14 +47,14 @@ enum Inner {
     Windows(crate::windows::Windows),
 }
 
+#[cfg(target_os = "macos")]
 impl From<crate::macos::Macos> for crate::Getter {
     fn from(value: crate::macos::Macos) -> Self {
         crate::Getter { inner: crate::Inner::Macos(value), _phantom: PhantomData }
     }
 }
 
-
-trait Backend {
+pub trait Backend {
     /// Obtains permissions for the underlying device, if necessary
     fn get_permissions(&mut self) -> Result<()>;
 

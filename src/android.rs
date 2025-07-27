@@ -1,11 +1,39 @@
-use jni::{objects::{JObject, JValue, JValueGen, JValueOwned}, JNIEnv};
+use crate::{Backend, Lla};
+use jni::{JavaVM, objects::{JObject, JValue, JValueGen, JValueOwned}, JNIEnv};
 
-pub struct Android;
+pub struct Android {
+    /// JavaVM (JVM) handle, necessary for getting the JNIEnv on subsequent calls
+    /// You can get this with from an env by calling env.get_java_vm();
+    jvm: JavaVM,
+}
+
+impl crate::Backend for Android {
+    fn get(&mut self) -> crate::Result<Lla> {
+        // JNI get env
+        let mut env = self.jvm.attach_current_thread_permanently().expect("Cannot attach thread to JVM");
+        Self::get_lla(&mut env)
+    }
+
+    // CONTRACT: Assumes we are already attached to a JVM thread with an Activity
+    // We could call attach ourselves, this thread won't have an activity associated with it
+    fn get_permissions(&mut self) -> crate::Result<()> {
+        let mut env = self.jvm.attach_current_thread_permanently().expect("Cannot attach thread to JVM");
+
+        Self::request_permission(&mut env)?;
+
+        Ok(())
+    }
+}
 
 impl Android {
+    pub fn new(jvm: JavaVM) -> Self {
+        Self {
+            jvm
+        }
+    }
 
     fn check_permission<'local>(env: &mut JNIEnv<'local>) -> Result<bool, ()> {
-        let activity = get_current_activity(env).expect("must be called from an activitiy");
+        let activity = Self::get_current_activity(env).expect("must be called from an activitiy");
         let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
 
         let Ok(JValueGen::Int(perm)) = env.call_static_method("androidx/core/content/ContextCompat", "checkSelfPermission", "(Landroid/content/Context;Ljava/lang/String;)I", &[(&activity).into(), (&fine_location).into()]) else {
@@ -65,13 +93,13 @@ impl Android {
     /// Requests permissions on android
     /// CONTRACT: MUST be called from an Activity.
     /// If there is no Activity on this thread, we will not be able to produce a permission popup
-    pub fn request_permission<'local>(env: &mut JNIEnv<'local>) {
+    pub fn request_permission<'local>(env: &mut JNIEnv<'local>) -> crate::Result<()> {
         // A major drawback of this approach is that the method used to get the activity uses 100% "unsupported" APIs
         // see requestPermissions in Activity.java (ActivityCompat is just a wrapper around this)
         // It's possible that we can manually construct and send the intent (packageManager.buildRequestPermissionsIntent)
         // This approach would also require unsupported APIs (like startActivityForResult, which still needs an Activity)
 
-        let activity = get_current_activity(env).expect("must have a current activity");
+        let activity = Self::get_current_activity(env).expect("must have a current activity");
 
         let fine_location = env.new_string("android.permission.ACCESS_FINE_LOCATION").expect("string");
         let perms_to_get = env.new_object_array(1, "java/lang/String", fine_location).expect("alloc array");
@@ -83,55 +111,57 @@ impl Android {
 
         log::info!("asked for permissions: {perm_res:?}");
 
-        while let Ok(false) = check_permission(env) {
+        while let Ok(false) = Self::check_permission(env) {
             // busy loop waiting for perm.
             //  we could try to play some callback games, but we cant create classes so this gets very weird.
             //  we may be able to register functions, but haven't tried this yet.
         }
+
+        Ok(())
     }
 
-    pub fn get_lla<'local>(env: &mut JNIEnv<'local>) -> Result<(f64, f64, f64), ()> {
-        let context = get_current_activity(env).expect("must have a current activity");
+    pub fn get_lla<'local>(env: &mut JNIEnv<'local>) -> crate::Result<Lla> {
+        let context = Self::get_current_activity(env).expect("must have a current activity");
 
         let location_service_handle = env.new_string("location").expect("create JNI String");
         let Ok(JValueOwned::Object(lm)) = env.call_method(&context, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;", &[(&location_service_handle).into()]) else {
             log::warn!("Unable to get location manager");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
 
         let Ok(JValueOwned::Object(providers)) = env.call_method(&lm, "getProviders", "(Z)Ljava/util/List;", &[true.into()]) else {
             log::warn!("Unable to get location providers");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         log::info!("got providers {providers:?} ");
 
         let Ok(JValueOwned::Object(provider)) = env.call_method(&providers, "getFirst", "()Ljava/lang/Object;", &[]) else {
             log::warn!("couldn't get first provider");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         log::info!("got provider {provider:?} ");
     
         let Ok(JValueOwned::Object(location)) = env.call_method(&lm, "getLastKnownLocation", "(Ljava/lang/String;)Landroid/location/Location;", &[(&provider).into()]) else {
             log::warn!("Unable to get location providers");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         log::info!("got location {location:?} ");
 
         let Ok(JValueOwned::Double(latitude)) = env.call_method(&location, "getLatitude", "()D", &[]) else {
             log::warn!("Unable to get lat");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         let Ok(JValueOwned::Double(longitude)) = env.call_method(&location, "getLongitude", "()D", &[]) else {
             log::warn!("Unable to get lat");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         //verified that its HAE in the docs
         let Ok(JValueOwned::Double(alt_hae)) = env.call_method(&location, "getAltitude", "()D", &[]) else {
             log::warn!("Unable to get alt");
-            return Err(());
+            return Err(crate::Error::FFIError);
         };
         log::info!("got LLA {latitude}, {longitude}, {alt_hae}");
 
-        return Ok((latitude, longitude, alt_hae));
+        return Ok(Lla { latitude_degs: latitude, longitude_degs: longitude, altitude_m_hae: alt_hae });
     }
 }
