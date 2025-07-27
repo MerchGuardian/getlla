@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::marker::PhantomData;
 
 #[cfg(target_os = "macos")]
@@ -31,11 +33,26 @@ pub struct Getter {
 
 enum Inner {
     #[cfg(target_os = "android")]
-    Android(),
+    Android(crate::android::Android),
     #[cfg(target_os = "macos")]
-    Macos(),
+    Macos(crate::macos::Macos),
     #[cfg(target_os = "windows")]
     Windows(crate::windows::Windows),
+}
+
+impl From<crate::macos::Macos> for crate::Getter {
+    fn from(value: crate::macos::Macos) -> Self {
+        crate::Getter { inner: crate::Inner::Macos(value), _phantom: PhantomData }
+    }
+}
+
+
+trait Backend {
+    /// Obtains permissions for the underlying device, if necessary
+    fn get_permissions(&mut self) -> Result<()>;
+
+    /// Gets an LLA
+    fn get(&mut self) -> Result<Lla>;
 }
 
 impl Getter {
@@ -44,7 +61,7 @@ impl Getter {
         #[cfg(target_os = "android")]
         unimplemented!();
         #[cfg(target_os = "macos")]
-        unimplemented!();
+        return Ok(crate::macos::Macos::new()?.into());
         #[cfg(target_os = "windows")]
         return Ok(crate::windows::Windows::new()?.into());
         #[cfg(all(
